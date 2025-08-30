@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { motion, useInView, useScroll, useTransform } from 'framer-motion'
 import { CalendarDaysIcon, ClockIcon, TagIcon, GiftIcon } from '@heroicons/react/24/outline'
 import { Card } from '@/components/ui/card'
@@ -21,14 +21,23 @@ export interface Promotion {
   title: string
   description: string
   discount: number
-  validFrom: Date
-  validUntil: Date
+  validFrom: Date | string
+  validUntil: Date | string
   image?: string
   isActive: boolean
 }
 
 interface PromotionsProps {
   promotions?: Promotion[]
+}
+
+// Utility function to normalize promotion dates
+const normalizePromotions = (promotions: any[]): Promotion[] => {
+  return promotions.map(promotion => ({
+    ...promotion,
+    validFrom: promotion.validFrom instanceof Date ? promotion.validFrom : new Date(promotion.validFrom),
+    validUntil: promotion.validUntil instanceof Date ? promotion.validUntil : new Date(promotion.validUntil)
+  }))
 }
 
 // Mock data for development
@@ -86,16 +95,18 @@ function PromotionCard({ promotion, index }: { promotion: Promotion; index: numb
   const scale = useTransform(scrollYProgress, [0, 0.5, 1], [0.9, 1, 0.9])
   const rotate = useTransform(scrollYProgress, [0, 0.5, 1], [-2, 0, 2])
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string) => {
+    const dateObj = date instanceof Date ? date : new Date(date)
     return new Intl.DateTimeFormat('ru-RU', {
       day: 'numeric',
       month: 'short'
-    }).format(date)
+    }).format(dateObj)
   }
 
-  const getDaysLeft = (endDate: Date) => {
+  const getDaysLeft = (endDate: Date | string) => {
     const now = new Date()
-    const diff = endDate.getTime() - now.getTime()
+    const dateObj = endDate instanceof Date ? endDate : new Date(endDate)
+    const diff = dateObj.getTime() - now.getTime()
     const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
     return days
   }
@@ -278,8 +289,14 @@ export function PromotionsSection({ promotions: initialPromotions }: PromotionsP
   )
 
   // Use API data if available, otherwise fall back to mock data or initial props
-  const promotions = apiPromotions?.data || initialPromotions || mockPromotions
-  const [displayedPromotions, setDisplayedPromotions] = useState(promotions.slice(0, 4))
+  const rawPromotions = apiPromotions?.data || initialPromotions || mockPromotions
+  
+  // Memoize the normalized promotions to prevent infinite re-renders
+  const promotions = useMemo(() => {
+    return normalizePromotions(rawPromotions)
+  }, [rawPromotions])
+  
+  const [displayedPromotions, setDisplayedPromotions] = useState<Promotion[]>([])
   const [showAll, setShowAll] = useState(false)
   const { ref, isInView } = useScrollAnimations({ threshold: 0.1 })
   const { scrollYProgress } = useScroll({
