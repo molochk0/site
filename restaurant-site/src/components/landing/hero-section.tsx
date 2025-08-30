@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { motion, useScroll, useTransform } from 'framer-motion'
 import { PlayIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import { Button } from '@/components/ui/button'
-import { OptimizedImage } from '@/components/ui/optimized-image'
+import { SimpleImage } from '@/components/ui/simple-image'
 import { useCountAnimation, fadeInVariants } from '@/hooks/use-scroll-animations'
 
 interface HeroContent {
@@ -62,7 +62,7 @@ export function HeroSection({ content = defaultContent }: HeroSectionProps) {
         className="absolute inset-0 z-0"
         style={{ y }}
       >
-        <OptimizedImage
+        <SimpleImage
           src={content.backgroundImage}
           alt="Restaurant interior"
           width={1920}
@@ -70,7 +70,6 @@ export function HeroSection({ content = defaultContent }: HeroSectionProps) {
           className="object-cover scale-110 w-full h-full"
           priority
           quality={90}
-          lazy={false}
         />
         {/* Overlay */}
         <motion.div 
@@ -186,7 +185,7 @@ export function HeroSection({ content = defaultContent }: HeroSectionProps) {
             </motion.div>
           </motion.div>
         </motion.div>
-      </div>
+      </motion.div>
 
       {/* Scroll Indicator */}
       <motion.button

@@ -501,11 +501,13 @@ export function EventsSection({ events = mockEvents }: EventsProps) {
                   }}
                   transition={{ duration: 0.6 }}
                 >
-                  <Image
+                  <OptimizedImage
                     src={upcomingEvents[0].image || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&h=400&fit=crop'}
                     alt={upcomingEvents[0].title}
-                    fill
-                    className="object-cover"
+                    width={600}
+                    height={400}
+                    className="object-cover w-full h-full"
+                    aspectRatio="landscape"
                   />
                 </motion.div>
                 <motion.div 

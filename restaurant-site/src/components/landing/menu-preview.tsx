@@ -252,11 +252,13 @@ export function MenuPreview({
                 }}
                 transition={{ duration: 0.6 }}
               >
-                <Image
+                <OptimizedImage
                   src={categories[activeCategory].image}
                   alt={categories[activeCategory].name}
-                  fill
-                  className="object-cover"
+                  width={600}
+                  height={400}
+                  className="object-cover w-full h-full"
+                  aspectRatio="landscape"
                 />
               </motion.div>
               <motion.div 

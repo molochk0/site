@@ -16,7 +16,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { TouchGallery } from '@/hooks/use-touch-gestures'
+// import { TouchGallery } from '@/hooks/use-touch-gestures'
 
 interface AboutContent {
   title: string
@@ -212,10 +212,21 @@ export function AboutSection({ content = defaultAbout }: { content?: AboutConten
             <div className="mb-6">
               <h3 className="text-xl font-bold text-gray-900 mb-4">Атмосфера ресторана</h3>
               <p className="text-gray-600 mb-4">Посмотрите на наши интерьеры и атмосферу. Нажмите на фото для детального просмотра.</p>
-              <TouchGallery 
+              {/* <TouchGallery 
                 images={content.images}
                 className="mb-6"
-              />
+              /> */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+                {content.images.map((image, index) => (
+                  <div key={index} className="aspect-square overflow-hidden rounded-lg">
+                    <img
+                      src={image.src}
+                      alt={image.alt}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
             
             {/* Chef Quote */}

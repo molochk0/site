@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import Image, { ImageProps } from 'next/image'
+import NextImage, { ImageProps } from 'next/image'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
@@ -14,9 +14,6 @@ interface OptimizedImageProps extends Omit<ImageProps, 'placeholder' | 'blurData
   quality?: number
 }
 
-/**
- * Optimized Image component with loading states, blur placeholders, and responsive sizing
- */
 export function OptimizedImage({
   src,
   alt,
@@ -41,9 +38,6 @@ export function OptimizedImage({
     landscape: 'aspect-[4/3]',
     auto: ''
   }
-
-  // Generate blur data URL for placeholder
-  const blurDataURL = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx4f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R+Sh7UztVMnBvhKOC0rCcpJJJJJJ9K/7g='
 
   const handleImageLoad = () => {
     setIsLoading(false)
@@ -75,16 +69,13 @@ export function OptimizedImage({
       aspectRatioClasses[aspectRatio],
       containerClassName
     )}>
-      <Image
+      <NextImage
         src={src}
         alt={alt}
         width={width}
         height={height}
         quality={quality}
         priority={priority}
-        loading={lazy ? 'lazy' : 'eager'}
-        placeholder="blur"
-        blurDataURL={blurDataURL}
         className={cn(
           'transition-opacity duration-300',
           isLoading && showLoader ? 'opacity-0' : 'opacity-100',
@@ -95,7 +86,6 @@ export function OptimizedImage({
         {...props}
       />
       
-      {/* Loading overlay */}
       {isLoading && showLoader && (
         <motion.div
           initial={{ opacity: 1 }}
@@ -114,9 +104,6 @@ export function OptimizedImage({
   )
 }
 
-/**
- * Responsive image with automatic sizes based on breakpoints
- */
 export function ResponsiveImage({
   src,
   alt,
@@ -140,9 +127,6 @@ export function ResponsiveImage({
   )
 }
 
-/**
- * Avatar image with circular crop and fallback
- */
 export function Avatar({
   src,
   alt,

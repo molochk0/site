@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { motion, MotionProps } from 'framer-motion'
 import { cva, type VariantProps } from 'class-variance-authority'
+import NextImage from 'next/image'
 import { cn } from '@/lib/utils'
 
 const cardVariants = cva(
@@ -213,11 +214,12 @@ const ImageCard = React.forwardRef<HTMLDivElement, ImageCardProps>(
     if (imagePosition === 'top') {
       return (
         <Card ref={ref} className={cn('overflow-hidden', className)} {...props}>
-          <div className="aspect-video w-full">
-            <img
+          <div className="aspect-video w-full relative">
+            <NextImage
               src={image}
               alt={imageAlt}
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
             />
           </div>
           <div className="p-6">
@@ -230,11 +232,12 @@ const ImageCard = React.forwardRef<HTMLDivElement, ImageCardProps>(
     return (
       <Card ref={ref} className={cn('flex', className)} {...props}>
         {imagePosition === 'left' && (
-          <div className="w-1/3">
-            <img
+          <div className="w-1/3 relative">
+            <NextImage
               src={image}
               alt={imageAlt}
-              className="w-full h-full object-cover rounded-l-lg"
+              fill
+              className="object-cover rounded-l-lg"
             />
           </div>
         )}
@@ -242,11 +245,12 @@ const ImageCard = React.forwardRef<HTMLDivElement, ImageCardProps>(
           {children}
         </div>
         {imagePosition === 'right' && (
-          <div className="w-1/3">
-            <img
+          <div className="w-1/3 relative">
+            <NextImage
               src={image}
               alt={imageAlt}
-              className="w-full h-full object-cover rounded-r-lg"
+              fill
+              className="object-cover rounded-r-lg"
             />
           </div>
         )}

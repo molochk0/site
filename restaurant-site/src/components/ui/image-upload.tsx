@@ -2,6 +2,7 @@ import * as React from 'react'
 import { useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { PhotoIcon, XMarkIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline'
+import NextImage from 'next/image'
 import { Button } from './button'
 import { cn } from '@/lib/utils'
 
@@ -136,10 +137,11 @@ export function ImageUpload({
       {currentImage ? (
         <div className="relative group">
           <div className="aspect-video w-full rounded-lg overflow-hidden bg-gray-100">
-            <img
+            <NextImage
               src={currentImage}
               alt="Uploaded"
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
             />
           </div>
           

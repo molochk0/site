@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { motion, PanInfo, useMotionValue, useTransform, AnimatePresence } from 'framer-motion'
+import NextImage from 'next/image'
 
 interface TouchGestureConfig {
   threshold?: number
@@ -84,7 +85,7 @@ export function TouchCarousel({
 }: CarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [direction, setDirection] = useState(0)
-  const autoPlayRef = useRef<NodeJS.Timeout>()
+  const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
   const slideVariants = {
     enter: (direction: number) => ({
@@ -273,10 +274,11 @@ export function TouchGallery({ images, className = '' }: GalleryProps) {
             whileTap={{ scale: 0.95 }}
             onClick={() => handleImageSelect(index)}
           >
-            <img
+            <NextImage
               src={image.src}
               alt={image.alt}
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
             />
             <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors" />
           </motion.div>
@@ -298,14 +300,17 @@ export function TouchGallery({ images, className = '' }: GalleryProps) {
               onClick={(e) => e.stopPropagation()}
               {...navigationGestures}
             >
-              <motion.img
+              <NextImage
                 src={images[selectedImage].src}
                 alt={images[selectedImage].alt}
+                width={1200}
+                height={800}
                 className="max-w-full max-h-full object-contain"
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale, opacity: 1 }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                {...zoomGestures}
+                style={{ 
+                  transform: `scale(${scale})`,
+                  transition: 'transform 0.3s ease'
+                }}
+                onClick={() => setScale(scale === 1 ? 2 : 1)}
               />
 
               {/* Navigation Arrows */}
