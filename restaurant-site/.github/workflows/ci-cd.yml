@@ -1,3 +1,445 @@
 name: CI/CD Pipeline
 
-on:\n  push:\n    branches: [ main, develop ]\n  pull_request:\n    branches: [ main, develop ]\n\nenv:\n  NODE_VERSION: '18'\n  PNPM_VERSION: '8'\n\njobs:\n  # Quality checks and testing\n  quality:\n    name: Code Quality & Tests\n    runs-on: ubuntu-latest\n    \n    services:\n      postgres:\n        image: postgres:15\n        env:\n          POSTGRES_PASSWORD: postgres\n          POSTGRES_USER: postgres\n          POSTGRES_DB: restaurant_test\n        options: >-\n          --health-cmd pg_isready\n          --health-interval 10s\n          --health-timeout 5s\n          --health-retries 5\n        ports:\n          - 5432:5432\n    \n    steps:\n    - name: Checkout code\n      uses: actions/checkout@v4\n      \n    - name: Setup Node.js\n      uses: actions/setup-node@v4\n      with:\n        node-version: ${{ env.NODE_VERSION }}\n        cache: 'npm'\n        \n    - name: Install dependencies\n      run: npm ci\n      \n    - name: Setup environment\n      run: |\n        cp .env.test .env.local\n        echo \"DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_test\" >> .env.local\n        \n    - name: Generate Prisma client\n      run: npm run db:generate\n      \n    - name: Run database migrations\n      run: npm run db:migrate:deploy\n      \n    - name: Type checking\n      run: npm run type-check\n      \n    - name: Linting\n      run: npm run lint\n      \n    - name: Format checking\n      run: npm run format:check\n      \n    - name: Unit tests\n      run: npm run test:ci\n      \n    - name: Upload coverage reports\n      uses: codecov/codecov-action@v4\n      with:\n        file: ./coverage/lcov.info\n        flags: unittests\n        name: codecov-umbrella\n        \n  # Build and deployment\n  build:\n    name: Build Application\n    runs-on: ubuntu-latest\n    needs: quality\n    \n    strategy:\n      matrix:\n        environment: [production, staging]\n        \n    steps:\n    - name: Checkout code\n      uses: actions/checkout@v4\n      \n    - name: Setup Node.js\n      uses: actions/setup-node@v4\n      with:\n        node-version: ${{ env.NODE_VERSION }}\n        cache: 'npm'\n        \n    - name: Install dependencies\n      run: npm ci\n      \n    - name: Setup environment for ${{ matrix.environment }}\n      run: |\n        if [ \"${{ matrix.environment }}\" = \"production\" ]; then\n          cp .env.production .env.local\n        else\n          cp .env.example .env.local\n        fi\n        \n    - name: Build application\n      run: |\n        if [ \"${{ matrix.environment }}\" = \"production\" ]; then\n          BUILD_STANDALONE=true npm run build\n        else\n          npm run build\n        fi\n      env:\n        NODE_ENV: ${{ matrix.environment == 'production' && 'production' || 'development' }}\n        \n    - name: Upload build artifacts\n      uses: actions/upload-artifact@v4\n      with:\n        name: build-${{ matrix.environment }}\n        path: |\n          .next/\n          public/\n          package.json\n          package-lock.json\n        retention-days: 7\n        \n  # Security scanning\n  security:\n    name: Security Scan\n    runs-on: ubuntu-latest\n    needs: quality\n    \n    steps:\n    - name: Checkout code\n      uses: actions/checkout@v4\n      \n    - name: Run Snyk to check for vulnerabilities\n      uses: snyk/actions/node@master\n      continue-on-error: true\n      env:\n        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}\n      with:\n        args: --severity-threshold=high\n        \n    - name: Run npm audit\n      run: |\n        npm audit --audit-level=moderate\n        \n  # Performance testing\n  lighthouse:\n    name: Lighthouse Performance\n    runs-on: ubuntu-latest\n    needs: build\n    if: github.ref == 'refs/heads/main'\n    \n    steps:\n    - name: Checkout code\n      uses: actions/checkout@v4\n      \n    - name: Setup Node.js\n      uses: actions/setup-node@v4\n      with:\n        node-version: ${{ env.NODE_VERSION }}\n        cache: 'npm'\n        \n    - name: Install dependencies\n      run: npm ci\n      \n    - name: Download build artifacts\n      uses: actions/download-artifact@v4\n      with:\n        name: build-production\n        \n    - name: Start application\n      run: |\n        npm start &\n        sleep 10\n        \n    - name: Run Lighthouse CI\n      run: |\n        npm install -g @lhci/cli@0.12.x\n        lhci autorun\n      env:\n        LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}\n        \n  # Deploy to staging\n  deploy-staging:\n    name: Deploy to Staging\n    runs-on: ubuntu-latest\n    needs: [build, security]\n    if: github.ref == 'refs/heads/develop'\n    environment: staging\n    \n    steps:\n    - name: Deploy to Vercel (Preview)\n      uses: amondnet/vercel-action@v25\n      with:\n        vercel-token: ${{ secrets.VERCEL_TOKEN }}\n        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}\n        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}\n        scope: ${{ secrets.VERCEL_ORG_ID }}\n        \n  # Deploy to production\n  deploy-production:\n    name: Deploy to Production\n    runs-on: ubuntu-latest\n    needs: [build, security, lighthouse]\n    if: github.ref == 'refs/heads/main'\n    environment: production\n    \n    steps:\n    - name: Deploy to Vercel (Production)\n      uses: amondnet/vercel-action@v25\n      with:\n        vercel-token: ${{ secrets.VERCEL_TOKEN }}\n        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}\n        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}\n        vercel-args: '--prod'\n        scope: ${{ secrets.VERCEL_ORG_ID }}\n        \n    - name: Notify deployment success\n      if: success()\n      run: echo \"🚀 Production deployment successful!\"\n      \n  # Cleanup\n  cleanup:\n    name: Cleanup\n    runs-on: ubuntu-latest\n    needs: [deploy-staging, deploy-production]\n    if: always()\n    \n    steps:\n    - name: Clean up artifacts\n      run: echo \"Cleaning up temporary artifacts...\"
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  DOCKER_BUILDKIT: 1
+
+jobs:
+  # Quality checks and testing
+  quality:
+    name: Code Quality & Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: restaurant_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Setup environment
+      run: |
+        cp .env.test .env.local
+        echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_test" >> .env.local
+        
+    - name: Generate Prisma client
+      run: npm run db:generate
+      
+    - name: Run database migrations
+      run: npm run db:migrate:deploy
+      
+    - name: Type checking
+      run: npm run type-check
+      
+    - name: Linting
+      run: npm run lint
+      
+    - name: Format checking
+      run: npm run format:check
+      
+    - name: Unit tests
+      run: npm run test:ci
+      
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v4
+      if: always()
+      with:
+        file: ./coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+        
+  # Build Docker image
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: quality
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+      digest: ${{ steps.build.outputs.digest }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha
+          type=raw,value=latest,enable={{is_default_branch}}
+        
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+    - name: Output image
+      id: image
+      run: |
+        echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+        
+  # Security scanning
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ needs.build.outputs.image }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+        
+    - name: Run npm audit
+      run: |
+        npm ci
+        npm audit --audit-level=moderate
+        
+  # Deploy to staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build, security]
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: ${{ steps.deploy.outputs.url }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Deploy to staging server
+      id: deploy
+      run: |
+        echo "Deploying to staging environment..."
+        echo "url=https://staging.your-domain.com" >> $GITHUB_OUTPUT
+        
+  # Deploy to production with database migration
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, security]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Create production environment file
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+        NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+        POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+        CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+        CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+        CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+      run: |
+        cat > .env.production << EOF
+        NODE_ENV=production
+        DATABASE_URL=$DATABASE_URL
+        NEXTAUTH_URL=$NEXTAUTH_URL
+        NEXTAUTH_SECRET=$NEXTAUTH_SECRET
+        POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+        REDIS_PASSWORD=$REDIS_PASSWORD
+        CLOUDINARY_CLOUD_NAME=$CLOUDINARY_CLOUD_NAME
+        CLOUDINARY_API_KEY=$CLOUDINARY_API_KEY
+        CLOUDINARY_API_SECRET=$CLOUDINARY_API_SECRET
+        APP_URL=$NEXTAUTH_URL
+        PORT=3000
+        EOF
+        
+    - name: Setup SSH connection
+      env:
+        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      run: |
+        mkdir -p ~/.ssh
+        echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+        
+    - name: Backup production database
+      env:
+        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      run: |
+        echo "Creating database backup..."
+        ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" << 'EOF'
+          cd /opt/restaurant-site
+          mkdir -p backups
+          BACKUP_FILE="backups/backup_$(date +%Y%m%d_%H%M%S).sql"
+          
+          if docker ps | grep -q restaurant-postgres-prod; then
+            docker exec restaurant-postgres-prod pg_dump \
+              -U postgres \
+              -d restaurant_prod \
+              --clean --if-exists > "$BACKUP_FILE"
+            gzip "$BACKUP_FILE"
+            echo "Backup created: ${BACKUP_FILE}.gz"
+            
+            # Keep only last 7 backups
+            ls -t backups/backup_*.sql.gz | tail -n +8 | xargs -r rm
+          else
+            echo "Database not running, skipping backup"
+          fi
+        EOF
+        
+    - name: Deploy to production server
+      id: deploy
+      env:
+        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      run: |
+        echo "Deploying to production server..."
+        
+        # Copy environment file to server
+        scp -i ~/.ssh/deploy_key .env.production "$DEPLOY_USER@$DEPLOY_HOST":/opt/restaurant-site/.env.production
+        
+        ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" << 'EOF'
+          cd /opt/restaurant-site
+          
+          # Pull latest Docker image
+          echo "Pulling Docker image: ${{ needs.build.outputs.image }}"
+          docker pull ${{ needs.build.outputs.image }}
+          
+          # Update docker-compose with new image
+          sed -i "s|image:.*|image: ${{ needs.build.outputs.image }}|" docker-compose.prod.yml
+          
+          # Load environment variables
+          export $(grep -v '^#' .env.production | xargs)
+          
+          # Run database migrations
+          echo "Running database migrations..."
+          docker run --rm --env-file .env.production \
+            --network restaurant_restaurant-network \
+            -v $(pwd)/prisma:/app/prisma \
+            ${{ needs.build.outputs.image }} \
+            npx prisma migrate deploy
+          
+          # Seed database if needed (only if tables are empty)
+          echo "Checking if database seeding is needed..."
+          USER_COUNT=$(docker run --rm --env-file .env.production \
+            --network restaurant_restaurant-network \
+            ${{ needs.build.outputs.image }} \
+            npx prisma db execute --stdin <<< "SELECT COUNT(*) FROM \"User\";" | tail -1 || echo "0")
+          
+          if [ "$USER_COUNT" = "0" ]; then
+            echo "Database is empty, running seed..."
+            docker run --rm --env-file .env.production \
+              --network restaurant_restaurant-network \
+              -v $(pwd)/prisma:/app/prisma \
+              -v $(pwd)/data:/app/data \
+              ${{ needs.build.outputs.image }} \
+              npm run db:seed
+          else
+            echo "Database already contains data, skipping seed"
+          fi
+          
+          # Deploy with zero-downtime
+          echo "Starting production deployment..."
+          docker-compose -f docker-compose.prod.yml up -d
+          
+          # Wait for services to be ready
+          echo "Waiting for services to start..."
+          sleep 45
+          
+          # Health check with retry
+          for i in {1..10}; do
+            if curl -f http://localhost:3000/api/health; then
+              echo "Health check passed!"
+              break
+            else
+              echo "Health check failed, attempt $i/10..."
+              if [ $i -eq 10 ]; then
+                echo "Health check failed after 10 attempts"
+                exit 1
+              fi
+              sleep 10
+            fi
+          done
+          
+          echo "Deployment successful!"
+        EOF
+        
+        echo "url=${{ secrets.NEXTAUTH_URL }}" >> $GITHUB_OUTPUT
+        
+    - name: Run comprehensive post-deployment tests
+      env:
+        PRODUCTION_URL: ${{ secrets.NEXTAUTH_URL }}
+      run: |
+        echo "Running comprehensive post-deployment tests..."
+        
+        # Test health endpoint
+        echo "Testing health endpoint..."
+        curl -f "$PRODUCTION_URL/api/health" | jq .
+        
+        # Test API endpoints
+        echo "Testing promotions API..."
+        curl -f "$PRODUCTION_URL/api/promotions" | jq .
+        
+        echo "Testing events API..."
+        curl -f "$PRODUCTION_URL/api/events" | jq .
+        
+        echo "Testing content API..."
+        curl -f "$PRODUCTION_URL/api/content" | jq .
+        
+        # Test main page loads
+        echo "Testing main page..."
+        curl -f "$PRODUCTION_URL" -o /dev/null
+        
+        echo "All post-deployment tests passed!"
+        
+    - name: Notify deployment success
+      if: success()
+      run: |
+        echo "🚀 Production deployment successful!"
+        echo "Application is live at: ${{ secrets.NEXTAUTH_URL }}"
+        
+  # Rollback on failure
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: failure()
+    environment: production
+    
+    steps:
+    - name: Setup SSH for rollback
+      env:
+        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      run: |
+        mkdir -p ~/.ssh
+        echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+        
+    - name: Rollback to previous version
+      env:
+        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      run: |
+        echo "🚨 Rolling back to previous version due to deployment failure..."
+        
+        ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" << 'EOF'
+          cd /opt/restaurant-site
+          
+          # Get the previous image tag
+          CURRENT_IMAGE=$(docker ps --format "table {{.Image}}" | grep restaurant | head -1)
+          echo "Current image: $CURRENT_IMAGE"
+          
+          # Stop current deployment
+          docker-compose -f docker-compose.prod.yml down
+          
+          # Find previous image from local Docker images
+          PREVIOUS_IMAGE=$(docker images --format "table {{.Repository}}:{{.Tag}}" | grep restaurant | head -2 | tail -1)
+          echo "Rolling back to: $PREVIOUS_IMAGE"
+          
+          if [ ! -z "$PREVIOUS_IMAGE" ]; then
+            # Update docker-compose with previous image
+            sed -i "s|image:.*|image: $PREVIOUS_IMAGE|" docker-compose.prod.yml
+            
+            # Start with previous image
+            docker-compose -f docker-compose.prod.yml up -d
+            
+            # Wait and verify rollback
+            sleep 30
+            if curl -f http://localhost:3000/api/health; then
+              echo "✅ Rollback successful!"
+            else
+              echo "❌ Rollback failed, manual intervention required"
+              exit 1
+            fi
+          else
+            echo "❌ No previous image found for rollback"
+            exit 1
+          fi
+        EOF
+        
+    - name: Notify rollback completion
+      if: success()
+      run: |
+        echo "🔄 Rollback completed successfully"
+        echo "The application has been restored to the previous working version"
+        
+    - name: Notify rollback failure
+      if: failure()
+      run: |
+        echo "❌ Rollback failed - manual intervention required"
+        echo "Please check the production server and restore manually"
