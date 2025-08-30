@@ -1,12 +1,36 @@
 import { NextAuthOptions } from 'next-auth'
-import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import CredentialsProvider from 'next-auth/providers/credentials'
-import GoogleProvider from 'next-auth/providers/google'
 import { compare } from 'bcryptjs'
-import { prisma } from './prisma'
+
+// Extend the built-in session types
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id: string
+      name?: string | null
+      email?: string | null
+      image?: string | null
+      role: string
+    }
+  }
+
+  interface User {
+    id: string
+    name?: string | null
+    email?: string | null
+    image?: string | null
+    role: string
+  }
+}
+
+declare module 'next-auth/jwt' {
+  interface JWT {
+    id: string
+    role: string
+  }
+}
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
   session: {
     strategy: 'jwt',
   },
@@ -32,33 +56,18 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Invalid credentials')
         }
 
-        const user = await prisma.user.findUnique({
-          where: {
-            email: credentials.email,
-          },
-        })
-
-        if (!user) {
-          throw new Error('User not found')
+        // Simple hardcoded check for demo purposes
+        if (credentials.email === 'admin@restaurant.com' && credentials.password === 'admin123') {
+          return {
+            id: 'admin-user',
+            email: 'admin@restaurant.com',
+            name: 'Restaurant Administrator',
+            role: 'admin',
+          }
         }
 
-        // For demo purposes, we'll use a simple password check
-        // In production, you should hash passwords with bcrypt
-        if (credentials.password !== 'admin123') {
-          throw new Error('Invalid password')
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        }
+        throw new Error('Invalid credentials')
       },
-    }),
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || '',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     }),
   ],
   callbacks: {
