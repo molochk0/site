@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, Suspense, useEffect } from 'react'
 import { signIn, getSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
@@ -14,9 +14,14 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [mounted, setMounted] = useState(false)
 
   const callbackUrl = searchParams.get('callbackUrl') || '/admin'
   const errorParam = searchParams.get('error')
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -47,6 +52,16 @@ function LoginForm() {
     }
   }
 
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-accent-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-accent-50 py-12 px-4 sm:px-6 lg:px-8">
       <motion.div
@@ -71,25 +86,20 @@ function LoginForm() {
           </motion.div>
         </div>
 
-        <motion.form
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
+        <form
           className="mt-8 space-y-6"
           onSubmit={handleSubmit}
         >
           <div className="bg-white rounded-lg shadow-lg p-8 space-y-6">
             {(error || errorParam) && (
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
+              <div
                 className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm"
               >
                 {error || 
                   (errorParam === 'access-denied' ? 'Access denied. Admin privileges required.' : 
                    errorParam === 'CredentialsSignin' ? 'Invalid credentials' : 
                    'An error occurred during sign in')}
-              </motion.div>
+              </div>
             )}
 
             <div>
@@ -140,9 +150,7 @@ function LoginForm() {
             </div>
 
             <div className="space-y-4">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+              <button
                 type="submit"
                 disabled={isLoading}
                 className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -155,7 +163,7 @@ function LoginForm() {
                 ) : (
                   'Sign In'
                 )}
-              </motion.button>
+              </button>
             </div>
 
             <div className="text-center text-xs text-gray-500">
@@ -163,7 +171,7 @@ function LoginForm() {
               <p>Email: admin@restaurant.com | Password: admin123</p>
             </div>
           </div>
-        </motion.form>
+        </form>
       </motion.div>
     </div>
   )
