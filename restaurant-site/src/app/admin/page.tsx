@@ -8,11 +8,12 @@ import {
   CalendarDaysIcon, 
   UserGroupIcon,
   EyeIcon,
-  TrendingUpIcon,
+  ChartBarSquareIcon,
   ArrowUpIcon,
   ArrowDownIcon
 } from '@heroicons/react/24/outline'
 import { AdminLayout } from '@/components/admin/admin-layout'
+import { AdminPageWrapper } from '@/components/admin/admin-page-wrapper'
 import { Card } from '@/components/ui/card'
 
 interface DashboardStats {
@@ -157,7 +158,8 @@ export default function AdminDashboard() {
       title="Панель управления" 
       description="Обзор состояния ресторана и последние обновления"
     >
-      <div className="space-y-8">
+      <AdminPageWrapper>
+        <div className="space-y-8">
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <motion.div
@@ -183,7 +185,7 @@ export default function AdminDashboard() {
             <StatCard
               title="Активные акции"
               value={stats.activePromotions}
-              icon={TrendingUpIcon}
+              icon={ChartBarSquareIcon}
               color="green"
             />
           </motion.div>
@@ -332,6 +334,7 @@ export default function AdminDashboard() {
             </div>
           </Card>
         </motion.div>
+        </div>
       </AdminPageWrapper>
     </AdminLayout>
   )
