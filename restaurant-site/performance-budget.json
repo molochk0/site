@@ -1,0 +1,124 @@
+{
+  "budget": [
+    {
+      "path": "/*",
+      "timings": [
+        {
+          "metric": "first-contentful-paint",
+          "budget": 2000
+        },
+        {
+          "metric": "largest-contentful-paint", 
+          "budget": 2500
+        },
+        {
+          "metric": "speed-index",
+          "budget": 3000
+        },
+        {
+          "metric": "interactive",
+          "budget": 3800
+        },
+        {
+          "metric": "first-meaningful-paint",
+          "budget": 2000
+        },
+        {
+          "metric": "max-potential-fid",
+          "budget": 130
+        }
+      ],
+      "resourceSizes": [
+        {
+          "resourceType": "script",
+          "budget": 400
+        },
+        {
+          "resourceType": "stylesheet", 
+          "budget": 100
+        },
+        {
+          "resourceType": "image",
+          "budget": 800
+        },
+        {
+          "resourceType": "font",
+          "budget": 200
+        },
+        {
+          "resourceType": "document",
+          "budget": 50
+        },
+        {
+          "resourceType": "other",
+          "budget": 200
+        },
+        {
+          "resourceType": "total",
+          "budget": 1600
+        }
+      ],
+      "resourceCounts": [
+        {
+          "resourceType": "script",
+          "budget": 15
+        },
+        {
+          "resourceType": "stylesheet",
+          "budget": 8
+        },
+        {
+          "resourceType": "image", 
+          "budget": 25
+        },
+        {
+          "resourceType": "font",
+          "budget": 6
+        },
+        {
+          "resourceType": "document",
+          "budget": 1
+        },
+        {
+          "resourceType": "other",
+          "budget": 10
+        },
+        {
+          "resourceType": "total",
+          "budget": 65
+        }
+      ]
+    },
+    {
+      "path": "/admin",
+      "timings": [
+        {
+          "metric": "first-contentful-paint",
+          "budget": 2500
+        },
+        {
+          "metric": "largest-contentful-paint",
+          "budget": 3000
+        },
+        {
+          "metric": "speed-index",
+          "budget": 3500
+        },
+        {
+          "metric": "interactive", 
+          "budget": 4000
+        }
+      ],
+      "resourceSizes": [
+        {
+          "resourceType": "script",
+          "budget": 600
+        },
+        {
+          "resourceType": "total",
+          "budget": 2000
+        }
+      ]
+    }
+  ]
+}

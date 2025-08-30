@@ -1,0 +1,12 @@
+[
+  {
+    "id": "user-1",
+    "name": "Restaurant Administrator",
+    "email": "admin@restaurant.com",
+    "emailVerified": "2025-08-30T13:51:05.559Z",
+    "image": null,
+    "role": "admin",
+    "createdAt": "2025-08-30T13:51:05.559Z",
+    "updatedAt": "2025-08-30T13:51:05.559Z"
+  }
+]

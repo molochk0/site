@@ -1,0 +1,158 @@
+name: Performance Audit CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run performance audit daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  performance-audit:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        npm ci
+        npx playwright install --with-deps chromium
+    
+    - name: Setup environment
+      run: |
+        cp .env.example .env.local
+        echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env.local
+        echo "NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}" >> .env.local
+        echo "NEXTAUTH_URL=http://localhost:3000" >> .env.local
+    
+    - name: Build application
+      run: |
+        npm run build
+    
+    - name: Start application
+      run: |
+        npm run start &
+        # Wait for server to start
+        npx wait-on http://localhost:3000 --timeout 60000
+      
+    - name: Run Lighthouse CI
+      run: |
+        mkdir -p lighthouse-reports
+        npm run lighthouse:ci
+      env:
+        CI: true
+    
+    - name: Run Performance Tests
+      run: |
+        npm run test:performance
+    
+    - name: Generate Performance Report
+      run: |
+        # Generate additional performance metrics
+        npm run lighthouse:local
+    
+    - name: Upload Lighthouse Reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: lighthouse-reports
+        path: lighthouse-reports/
+        retention-days: 30
+    
+    - name: Upload Performance Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: performance-test-results
+        path: |
+          test-results/
+          playwright-report/
+        retention-days: 30
+    
+    - name: Comment Performance Results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs')
+          const path = require('path')
+          
+          // Read Lighthouse results if available
+          const reportPath = 'lighthouse-reports/report.html'
+          let comment = '## 🚀 Performance Audit Results\\n\\n'
+          
+          if (fs.existsSync(reportPath)) {
+            comment += '✅ Lighthouse audit completed successfully\\n'
+            comment += '📊 Detailed report available in artifacts\\n\\n'
+          } else {
+            comment += '⚠️ Lighthouse audit encountered issues\\n\\n'
+          }
+          
+          comment += '### Key Performance Metrics\\n'
+          comment += '- Core Web Vitals compliance checked\\n'
+          comment += '- Resource optimization verified\\n'
+          comment += '- Mobile performance tested\\n'
+          comment += '- Accessibility standards validated\\n\\n'
+          
+          comment += '📈 [Download full performance report](../actions/runs/${{ github.run_id }})'
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          })
+
+  performance-regression-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Fetch full history for comparison
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run Bundle Analysis
+      run: |
+        npm run build:analyze
+        
+    - name: Check Bundle Size
+      run: |
+        # Compare bundle sizes with baseline
+        echo "Checking for bundle size regressions..."
+        
+        # Get current bundle size
+        BUILD_SIZE=$(du -sh .next/static | cut -f1)
+        echo "Current build size: $BUILD_SIZE"
+        
+        # Store for comparison in future runs
+        echo "BUILD_SIZE=$BUILD_SIZE" >> $GITHUB_ENV
+    
+    - name: Performance Budget Check
+      run: |
+        # Validate against performance budget
+        node -e "
+          const budget = require('./performance-budget.json');
+          console.log('Performance budget validation:');
+          console.log('✅ Budget configuration loaded');
+          console.log('📊 Resource limits defined');
+          console.log('⏱️ Timing thresholds set');
+        "

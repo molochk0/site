@@ -67,10 +67,17 @@ export async function GET() {
     
     if (contentRecords.length === 0) {
       // Return default content if no content in database
-      return NextResponse.json({
-        success: true,
-        data: defaultContent
-      })
+    const response = NextResponse.json({
+      success: true,
+      data: defaultContent
+    })
+
+    // Add caching headers for default content
+    response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=7200')
+    response.headers.set('CDN-Cache-Control', 'public, s-maxage=3600')
+    response.headers.set('Vercel-CDN-Cache-Control', 'public, s-maxage=3600')
+
+    return response
     }
 
     // Merge database content with default content
@@ -90,10 +97,17 @@ export async function GET() {
       current[keys[keys.length - 1]] = record.value
     })
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       data: content
     })
+
+    // Add caching headers - content changes less frequently
+    response.headers.set('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=3600')
+    response.headers.set('CDN-Cache-Control', 'public, s-maxage=1800')
+    response.headers.set('Vercel-CDN-Cache-Control', 'public, s-maxage=1800')
+
+    return response
   } catch (error) {
     console.error('Error fetching content:', error)
     return NextResponse.json(
